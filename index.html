@@ -11,7 +11,6 @@
       --text: #243447;
       --muted: #5f6c7b;
       --line: #2b2b2b;
-      --soft-line: #cbd5e1;
       --accent: #3d4f67;
       --active: #111827;
       --shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
@@ -120,9 +119,7 @@
       line-height: 1.45;
     }
 
-    .palette-wrap {
-      gap: 8px;
-    }
+    .palette-wrap { gap: 8px; }
 
     .swatch,
     .custom-color {
@@ -140,7 +137,6 @@
 
     .custom-color {
       overflow: hidden;
-      padding: 0;
       cursor: pointer;
     }
 
@@ -223,9 +219,7 @@
       gap: 2px;
     }
 
-    .dow {
-      margin-bottom: 3px;
-    }
+    .dow { margin-bottom: 3px; }
 
     .dow div {
       text-align: center;
@@ -245,9 +239,7 @@
       font-size: 14px;
     }
 
-    .empty {
-      background: transparent;
-    }
+    .empty { background: transparent; }
 
     .day {
       border: 0;
@@ -543,17 +535,14 @@
         custom.setAttribute('aria-label', 'Custom color');
         custom.innerHTML = '<input id="customColorInput" type="color" value="' + activeColor + '">';
         const input = custom.querySelector('input');
-        input.addEventListener('input', (e) => setActiveColor(e.target.value, 'custom'));
+        input.addEventListener('input', e => setActiveColor(e.target.value, 'custom'));
         paletteWrap.appendChild(custom);
 
         refreshPaletteActiveState(activeColor, COLORS.some(c => c.value.toLowerCase() === activeColor.toLowerCase()) ? 'swatch' : 'custom');
       }
 
       function renderLegend() {
-        const items = [
-          ...COLORS,
-          { name: 'Custom', value: activeColor }
-        ];
+        const items = [...COLORS, { name: 'Custom', value: activeColor }];
         const unique = [];
         const seen = new Set();
         items.forEach(item => {
@@ -647,8 +636,8 @@
 
             btn.addEventListener('mousedown', onDayMouseDown);
             btn.addEventListener('mouseenter', onDayMouseEnter);
-            btn.addEventListener('click', (e) => e.preventDefault());
-            btn.addEventListener('contextmenu', (e) => {
+            btn.addEventListener('click', e => e.preventDefault());
+            btn.addEventListener('contextmenu', e => {
               e.preventDefault();
               clearDate(dateIso);
             });
@@ -711,6 +700,10 @@
       }
 
       function clearYear() {
+        const existing = Object.keys(getYearMarkings()).length;
+        if (!existing) return;
+        const confirmed = window.confirm(`Clear all highlights for ${state.year}? This cannot be undone.`);
+        if (!confirmed) return;
         state.markingsByYear[state.year] = {};
         renderCalendar();
       }
@@ -794,7 +787,7 @@
 
         const title = `${state.year} Calendar`;
         content.push(setFillColor('#4d627b'));
-        content.push(centeredText(title, page.width / 2, titleY, titleSize, 'F2'));
+        content.push(centeredText(title, page.width / 2, titleY, titleSize, 'F2', page.height));
         content.push(setStrokeColor('#111111'));
         content.push('1 w');
         content.push(rect(page.margin, 64, page.width - page.margin * 2, page.height - 64 - page.margin, 'S', page.height));
@@ -810,22 +803,31 @@
           }
 
           content.push(setFillColor('#4d627b'));
-          content.push(centeredText(month.monthName, month.x + month.w / 2, month.titleTop, 12.5, 'F2'));
+          content.push(centeredText(month.monthName, month.x + month.w / 2, month.titleTop, 12.5, 'F2', page.height));
 
           month.weekdays.forEach((weekday, i) => {
             const x = month.gridLeft + i * month.cellW + month.cellW / 2;
             content.push(setFillColor('#555555'));
-            content.push(centeredText(weekday, x, month.dowTop, 8.3, 'F2'));
+            content.push(centeredText(weekday, x, month.dowTop, 8.3, 'F2', page.height));
           });
 
           month.dates.forEach(date => {
+            const dayText = String(date.day);
             const color = markings[date.iso];
+            const dayTextSize = 8.6;
+            const dayTextTop = date.y + date.h * 0.72;
             if (color) {
+              const textWidth = approxTextWidth(dayText, dayTextSize, 'F1');
+              const highlightPadX = 4.2;
+              const highlightWidth = Math.min(date.w - 2.2, Math.max(11.5, textWidth + highlightPadX * 2));
+              const highlightX = date.x + (date.w - highlightWidth) / 2;
+              const highlightTop = dayTextTop - 0.9;
+              const highlightHeight = dayTextSize + 2.2;
               content.push(setFillColor(color));
-              content.push(rect(date.x + 1.5, date.y + 1.5, date.w - 3, date.h - 3, 'f', page.height));
+              content.push(rect(highlightX, highlightTop, highlightWidth, highlightHeight, 'f', page.height));
             }
             content.push(setFillColor('#333333'));
-            content.push(centeredText(String(date.day), date.x + date.w / 2, date.y + date.h * 0.72, 8.6, 'F1'));
+            content.push(centeredText(dayText, date.x + date.w / 2, dayTextTop, dayTextSize, 'F1', page.height));
           });
         });
 
@@ -865,18 +867,39 @@
       }
 
       function approxTextWidth(text, size, fontKey) {
-        const factor = fontKey === 'F2' ? 0.57 : 0.53;
-        return String(text).length * size * factor;
+        const narrow = " .,:;!'`|iIl1";
+        const semiNarrow = "[](){}frtJj";
+        const wide = 'mwWMQGODCBN@%&';
+        const extraWide = 'MWWQ@%';
+        const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        const lower = 'abcdefghijklmnopqrstuvwxyz';
+        const digits = '0123456789';
+
+        let units = 0;
+        for (const ch of String(text)) {
+          if (ch === ' ') units += 0.33;
+          else if (narrow.includes(ch)) units += 0.36;
+          else if (semiNarrow.includes(ch)) units += 0.48;
+          else if (extraWide.includes(ch)) units += 0.86;
+          else if (wide.includes(ch)) units += 0.76;
+          else if (digits.includes(ch)) units += 0.56;
+          else if (upper.includes(ch)) units += 0.68;
+          else if (lower.includes(ch)) units += 0.55;
+          else units += 0.58;
+        }
+
+        const fontMultiplier = fontKey === 'F2' ? 1.03 : 1;
+        return units * size * fontMultiplier;
       }
 
-      function centeredText(text, centerX, topY, size, fontKey) {
+      function centeredText(text, centerX, topY, size, fontKey, pageHeight) {
         const width = approxTextWidth(text, size, fontKey);
         const x = centerX - width / 2;
-        return textAt(text, x, topY, size, fontKey);
+        return textAt(text, x, topY, size, fontKey, pageHeight);
       }
 
-      function textAt(text, x, topY, size, fontKey) {
-        const y = 612 - topY - size;
+      function textAt(text, x, topY, size, fontKey, pageHeight) {
+        const y = pageHeight - topY - size;
         return `BT /${fontKey} ${size.toFixed(2)} Tf 1 0 0 1 ${x.toFixed(2)} ${y.toFixed(2)} Tm (${pdfEscape(text)}) Tj ET`;
       }
 
@@ -913,7 +936,7 @@
 
       document.addEventListener('mouseup', () => { isDragging = false; });
       document.addEventListener('mouseleave', () => { isDragging = false; });
-      document.addEventListener('dragstart', (e) => e.preventDefault());
+      document.addEventListener('dragstart', e => e.preventDefault());
 
       prevYearBtn.addEventListener('click', () => {
         yearInput.value = clampYear(Number(yearInput.value || state.year) - 1);
