@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Calendar Highlighter</title>
+  <style>
+    :root {
+      --bg: #f3f4f6;
+      --panel: #ffffff;
+      --text: #243447;
+      --muted: #5f6c7b;
+      --line: #2b2b2b;
+      --soft-line: #cbd5e1;
+      --accent: #3d4f67;
+      --active: #111827;
+      --shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    body {
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .app {
+      max-width: 1500px;
+      margin: 0 auto;
+    }
+
+    .toolbar {
+      background: var(--panel);
+      border: 1px solid #d7dde6;
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 16px 18px;
+      margin-bottom: 18px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .toolbar-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 18px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .controls-left,
+    .controls-right,
+    .palette-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .field {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .field input[type="number"],
+    .field select,
+    button,
+    .custom-color {
+      border: 1px solid #cfd8e3;
+      border-radius: 10px;
+      background: #fff;
+      color: var(--text);
+      font: inherit;
+    }
+
+    .field input[type="number"],
+    .field select {
+      padding: 10px 12px;
+      min-width: 102px;
+      font-weight: 600;
+    }
+
+    button {
+      padding: 10px 14px;
+      cursor: pointer;
+      transition: transform 0.08s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+      font-weight: 700;
+    }
+
+    button:hover { box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08); }
+    button:active { transform: translateY(1px); }
+
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+
+    .btn-quiet.active-tool {
+      border-color: var(--active);
+      box-shadow: inset 0 0 0 1px var(--active);
+      background: #f8fafc;
+    }
+
+    .hint {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .palette-wrap {
+      gap: 8px;
+    }
+
+    .swatch,
+    .custom-color {
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      border: 2px solid rgba(15, 23, 42, 0.15);
+      background: var(--swatch, #fff);
+    }
+
+    .custom-color {
+      overflow: hidden;
+      padding: 0;
+      cursor: pointer;
+    }
+
+    .custom-color input {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      padding: 0;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .swatch.active,
+    .custom-color.active {
+      border-color: #111827;
+      box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.16);
+      transform: translateY(-1px);
+    }
+
+    .swatch::after,
+    .custom-color::after {
+      content: "";
+      position: absolute;
+      inset: 5px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      pointer-events: none;
+    }
+
+    .calendar-sheet {
+      background: white;
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+      border: 1px solid #d7dde6;
+      padding: 18px 18px 12px;
+      overflow: hidden;
+    }
+
+    .calendar-title {
+      text-align: center;
+      font-size: clamp(34px, 5vw, 56px);
+      font-weight: 500;
+      margin: 2px 0 16px;
+      color: var(--accent);
+      letter-spacing: 0.4px;
+    }
+
+    .months-grid {
+      border: 1.25px solid var(--line);
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      background: white;
+    }
+
+    .month {
+      border-right: 1.25px solid var(--line);
+      border-bottom: 1.25px solid var(--line);
+      min-height: 245px;
+      padding: 10px 10px 9px;
+      display: flex;
+      flex-direction: column;
+      user-select: none;
+    }
+
+    .month:nth-child(4n) { border-right: 0; }
+    .month:nth-last-child(-n + 4) { border-bottom: 0; }
+
+    .month-title {
+      text-align: center;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+
+    .dow,
+    .days {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 2px;
+    }
+
+    .dow {
+      margin-bottom: 3px;
+    }
+
+    .dow div {
+      text-align: center;
+      font-size: 13px;
+      font-weight: 700;
+      color: #555;
+      padding: 2px 0;
+    }
+
+    .day,
+    .empty {
+      min-height: 31px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+
+    .empty {
+      background: transparent;
+    }
+
+    .day {
+      border: 0;
+      background: transparent;
+      position: relative;
+      font-weight: 600;
+      color: #3a3a3a;
+      padding: 0;
+      width: 100%;
+    }
+
+    .day:hover {
+      outline: 1px dashed #9ca3af;
+      outline-offset: -2px;
+      box-shadow: none;
+    }
+
+    .day.marked {
+      background: var(--mark, #fde68a);
+      color: #111827;
+    }
+
+    .day.today {
+      box-shadow: inset 0 0 0 2px #334155;
+    }
+
+    .day:focus-visible {
+      outline: 2px solid #334155;
+      outline-offset: 1px;
+    }
+
+    .legend {
+      margin-top: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 14px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .legend-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(15, 23, 42, 0.18);
+      background: var(--swatch, #fff);
+      flex: 0 0 auto;
+    }
+
+    .footer-note {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 12px;
+      text-align: right;
+    }
+
+    @media (max-width: 1100px) {
+      .months-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .month:nth-child(4n) { border-right: 1.25px solid var(--line); }
+      .month:nth-child(2n) { border-right: 0; }
+      .month:nth-last-child(-n + 4) { border-bottom: 1.25px solid var(--line); }
+      .month:nth-last-child(-n + 2) { border-bottom: 0; }
+    }
+
+    @media (max-width: 680px) {
+      body { padding: 12px; }
+      .toolbar { padding: 14px; }
+      .calendar-sheet { padding: 12px 12px 10px; }
+      .months-grid { grid-template-columns: 1fr; }
+      .month { border-right: 0 !important; }
+      .month:not(:last-child) { border-bottom: 1.25px solid var(--line); }
+      .month:last-child { border-bottom: 0; }
+      .calendar-title { margin-bottom: 10px; }
+    }
+
+    @media print {
+      @page {
+        size: landscape;
+        margin: 8mm;
+      }
+
+      html, body {
+        background: white;
+        padding: 0;
+        margin: 0;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      .toolbar,
+      .footer-note,
+      .legend,
+      .hint-print-hide {
+        display: none !important;
+      }
+
+      .app,
+      .calendar-sheet {
+        max-width: none;
+        box-shadow: none;
+        border: 0;
+        border-radius: 0;
+        padding: 0;
+        margin: 0;
+      }
+
+      .calendar-title {
+        margin: 0 0 10px;
+        font-size: 30px;
+      }
+
+      .month {
+        min-height: 175px;
+        padding: 6px 7px 6px;
+      }
+
+      .month-title { font-size: 14px; margin-bottom: 4px; }
+      .dow div { font-size: 10px; padding: 1px 0; }
+      .day, .empty { min-height: 19px; font-size: 10px; border-radius: 4px; }
+      .months-grid { border-width: 1px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="toolbar hint-print-hide">
+      <div class="toolbar-row">
+        <div class="controls-left">
+          <button type="button" id="prevYearBtn" aria-label="Previous year">←</button>
+          <label class="field">Year
+            <input type="number" id="yearInput" min="1900" max="2100" step="1" />
+          </label>
+          <button type="button" id="nextYearBtn" aria-label="Next year">→</button>
+          <label class="field">Week starts
+            <select id="weekStartSelect">
+              <option value="monday">Monday</option>
+              <option value="sunday">Sunday</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="controls-right">
+          <button type="button" class="btn-quiet active-tool" id="paintBtn">Paint</button>
+          <button type="button" class="btn-quiet" id="eraseBtn">Erase</button>
+          <button type="button" id="clearYearBtn">Clear Year</button>
+          <button type="button" id="printBtn">Print</button>
+          <button type="button" class="btn-primary" id="exportPdfBtn">Export PDF</button>
+        </div>
+      </div>
+
+      <div class="toolbar-row">
+        <div class="palette-wrap" id="paletteWrap" aria-label="Highlight colors"></div>
+        <div class="hint">Click or drag across dates to color them. Right-click any date to clear it. Your highlights are saved in this browser.</div>
+      </div>
+    </div>
+
+    <div class="calendar-sheet" id="sheet">
+      <div class="calendar-title" id="calendarTitle">2026 Calendar</div>
+      <div class="months-grid" id="monthsGrid"></div>
+      <div class="legend hint-print-hide" id="legend"></div>
+      <div class="footer-note">Self-contained year calendar with color highlights</div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const STORAGE_KEY = 'calendar-highlighter-v1';
+      const COLORS = [
+        { name: 'Yellow', value: '#fde68a' },
+        { name: 'Green', value: '#bbf7d0' },
+        { name: 'Blue', value: '#bfdbfe' },
+        { name: 'Pink', value: '#fbcfe8' },
+        { name: 'Orange', value: '#fed7aa' },
+        { name: 'Purple', value: '#ddd6fe' },
+        { name: 'Gray', value: '#e5e7eb' }
+      ];
+
+      const MONTHS = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+      ];
+      const WEEKDAYS_SUN = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+      const WEEKDAYS_MON = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+
+      const yearInput = document.getElementById('yearInput');
+      const weekStartSelect = document.getElementById('weekStartSelect');
+      const prevYearBtn = document.getElementById('prevYearBtn');
+      const nextYearBtn = document.getElementById('nextYearBtn');
+      const paintBtn = document.getElementById('paintBtn');
+      const eraseBtn = document.getElementById('eraseBtn');
+      const clearYearBtn = document.getElementById('clearYearBtn');
+      const printBtn = document.getElementById('printBtn');
+      const exportPdfBtn = document.getElementById('exportPdfBtn');
+      const monthsGrid = document.getElementById('monthsGrid');
+      const calendarTitle = document.getElementById('calendarTitle');
+      const paletteWrap = document.getElementById('paletteWrap');
+      const legend = document.getElementById('legend');
+
+      let state = loadState();
+      let activeTool = state.activeTool || 'paint';
+      let activeColor = state.activeColor || COLORS[0].value;
+      let isDragging = false;
+
+      function defaultState() {
+        const now = new Date();
+        return {
+          year: now.getFullYear(),
+          weekStart: 'monday',
+          activeColor: COLORS[0].value,
+          activeTool: 'paint',
+          markingsByYear: {}
+        };
+      }
+
+      function loadState() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return defaultState();
+          const parsed = JSON.parse(raw);
+          return {
+            ...defaultState(),
+            ...parsed,
+            markingsByYear: parsed.markingsByYear || {}
+          };
+        } catch (err) {
+          console.warn('Could not load saved state:', err);
+          return defaultState();
+        }
+      }
+
+      function saveState() {
+        state.activeColor = activeColor;
+        state.activeTool = activeTool;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      }
+
+      function getYearMarkings(year = state.year) {
+        if (!state.markingsByYear[year]) state.markingsByYear[year] = {};
+        return state.markingsByYear[year];
+      }
+
+      function setTool(tool) {
+        activeTool = tool;
+        paintBtn.classList.toggle('active-tool', tool === 'paint');
+        eraseBtn.classList.toggle('active-tool', tool === 'erase');
+        saveState();
+      }
+
+      function setActiveColor(color, source = 'swatch') {
+        activeColor = color;
+        if (source !== 'custom') {
+          const colorInput = document.getElementById('customColorInput');
+          if (colorInput) colorInput.value = color;
+        }
+        setTool('paint');
+        refreshPaletteActiveState(color, source);
+        renderLegend();
+        saveState();
+      }
+
+      function refreshPaletteActiveState(color, source) {
+        document.querySelectorAll('.swatch').forEach(btn => {
+          btn.classList.toggle('active', btn.dataset.color.toLowerCase() === color.toLowerCase() && source !== 'custom');
+        });
+        const custom = document.querySelector('.custom-color');
+        if (custom) custom.classList.toggle('active', source === 'custom');
+      }
+
+      function renderPalette() {
+        paletteWrap.innerHTML = '';
+        COLORS.forEach(({ name, value }) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'swatch';
+          btn.dataset.color = value;
+          btn.title = name;
+          btn.setAttribute('aria-label', name);
+          btn.style.setProperty('--swatch', value);
+          btn.addEventListener('click', () => setActiveColor(value, 'swatch'));
+          paletteWrap.appendChild(btn);
+        });
+
+        const custom = document.createElement('label');
+        custom.className = 'custom-color';
+        custom.title = 'Custom color';
+        custom.setAttribute('aria-label', 'Custom color');
+        custom.innerHTML = '<input id="customColorInput" type="color" value="' + activeColor + '">';
+        const input = custom.querySelector('input');
+        input.addEventListener('input', (e) => setActiveColor(e.target.value, 'custom'));
+        paletteWrap.appendChild(custom);
+
+        refreshPaletteActiveState(activeColor, COLORS.some(c => c.value.toLowerCase() === activeColor.toLowerCase()) ? 'swatch' : 'custom');
+      }
+
+      function renderLegend() {
+        const items = [
+          ...COLORS,
+          { name: 'Custom', value: activeColor }
+        ];
+        const unique = [];
+        const seen = new Set();
+        items.forEach(item => {
+          const key = item.value.toLowerCase();
+          if (!seen.has(key)) {
+            seen.add(key);
+            unique.push(item);
+          }
+        });
+
+        legend.innerHTML = unique.map(item => `
+          <span class="legend-item"><span class="legend-dot" style="--swatch:${item.value}"></span>${escapeHtml(item.name)}</span>
+        `).join('');
+      }
+
+      function escapeHtml(str) {
+        return String(str).replace(/[&<>"']/g, ch => ({
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#39;'
+        })[ch]);
+      }
+
+      function daysInMonth(year, monthIndex) {
+        return new Date(year, monthIndex + 1, 0).getDate();
+      }
+
+      function isoDate(year, monthIndex, day) {
+        return `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      }
+
+      function renderCalendar() {
+        state.year = clampYear(Number(yearInput.value) || state.year);
+        state.weekStart = weekStartSelect.value;
+        yearInput.value = state.year;
+        calendarTitle.textContent = `${state.year} Calendar`;
+        monthsGrid.innerHTML = '';
+
+        const weekdays = state.weekStart === 'monday' ? WEEKDAYS_MON : WEEKDAYS_SUN;
+        const markings = getYearMarkings();
+        const today = new Date();
+        const todayIso = isoDate(today.getFullYear(), today.getMonth(), today.getDate());
+
+        for (let month = 0; month < 12; month += 1) {
+          const monthEl = document.createElement('section');
+          monthEl.className = 'month';
+
+          const titleEl = document.createElement('div');
+          titleEl.className = 'month-title';
+          titleEl.textContent = MONTHS[month];
+          monthEl.appendChild(titleEl);
+
+          const dowEl = document.createElement('div');
+          dowEl.className = 'dow';
+          weekdays.forEach(d => {
+            const cell = document.createElement('div');
+            cell.textContent = d;
+            dowEl.appendChild(cell);
+          });
+          monthEl.appendChild(dowEl);
+
+          const daysEl = document.createElement('div');
+          daysEl.className = 'days';
+
+          const firstDay = new Date(state.year, month, 1).getDay();
+          const offset = state.weekStart === 'monday' ? (firstDay + 6) % 7 : firstDay;
+          const totalDays = daysInMonth(state.year, month);
+
+          for (let i = 0; i < offset; i += 1) {
+            const empty = document.createElement('div');
+            empty.className = 'empty';
+            daysEl.appendChild(empty);
+          }
+
+          for (let day = 1; day <= totalDays; day += 1) {
+            const dateIso = isoDate(state.year, month, day);
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'day';
+            btn.textContent = String(day);
+            btn.dataset.date = dateIso;
+            btn.title = dateIso;
+
+            if (dateIso === todayIso) btn.classList.add('today');
+            if (markings[dateIso]) {
+              btn.classList.add('marked');
+              btn.style.setProperty('--mark', markings[dateIso]);
+            }
+
+            btn.addEventListener('mousedown', onDayMouseDown);
+            btn.addEventListener('mouseenter', onDayMouseEnter);
+            btn.addEventListener('click', (e) => e.preventDefault());
+            btn.addEventListener('contextmenu', (e) => {
+              e.preventDefault();
+              clearDate(dateIso);
+            });
+
+            daysEl.appendChild(btn);
+          }
+
+          monthEl.appendChild(daysEl);
+          monthsGrid.appendChild(monthEl);
+        }
+
+        saveState();
+      }
+
+      function onDayMouseDown(event) {
+        if (event.button !== 0) return;
+        event.preventDefault();
+        isDragging = true;
+        applyToDate(event.currentTarget.dataset.date);
+      }
+
+      function onDayMouseEnter(event) {
+        if (!isDragging) return;
+        applyToDate(event.currentTarget.dataset.date);
+      }
+
+      function clearDate(dateIso) {
+        const markings = getYearMarkings();
+        delete markings[dateIso];
+        renderCalendar();
+      }
+
+      function applyToDate(dateIso) {
+        const markings = getYearMarkings();
+        if (activeTool === 'erase') {
+          delete markings[dateIso];
+        } else {
+          markings[dateIso] = activeColor;
+        }
+        updateSingleDateButton(dateIso);
+        saveState();
+      }
+
+      function updateSingleDateButton(dateIso) {
+        const btn = document.querySelector(`.day[data-date="${dateIso}"]`);
+        if (!btn) return;
+        const color = getYearMarkings()[dateIso];
+        if (color) {
+          btn.classList.add('marked');
+          btn.style.setProperty('--mark', color);
+        } else {
+          btn.classList.remove('marked');
+          btn.style.removeProperty('--mark');
+        }
+      }
+
+      function clampYear(year) {
+        if (!Number.isFinite(year)) return new Date().getFullYear();
+        return Math.min(2100, Math.max(1900, Math.trunc(year)));
+      }
+
+      function clearYear() {
+        state.markingsByYear[state.year] = {};
+        renderCalendar();
+      }
+
+      function buildLayoutModel(year, weekStart) {
+        const page = { width: 792, height: 612, margin: 24 };
+        const titleY = 30;
+        const titleSize = 26;
+        const calendarTop = 64;
+        const calendarWidth = page.width - page.margin * 2;
+        const calendarHeight = page.height - calendarTop - page.margin;
+        const cols = 4;
+        const rows = 3;
+        const boxW = calendarWidth / cols;
+        const boxH = calendarHeight / rows;
+        const weekdays = weekStart === 'monday' ? WEEKDAYS_MON : WEEKDAYS_SUN;
+        const months = [];
+
+        for (let month = 0; month < 12; month += 1) {
+          const col = month % cols;
+          const row = Math.floor(month / cols);
+          const x = page.margin + col * boxW;
+          const y = calendarTop + row * boxH;
+          const innerPad = 8;
+          const titleTop = y + 12;
+          const dowTop = y + 34;
+          const daysTop = y + 52;
+          const gridLeft = x + innerPad;
+          const gridRight = x + boxW - innerPad;
+          const cellW = (gridRight - gridLeft) / 7;
+          const cellH = (boxH - 60) / 6;
+          const firstDay = new Date(year, month, 1).getDay();
+          const offset = weekStart === 'monday' ? (firstDay + 6) % 7 : firstDay;
+          const totalDays = daysInMonth(year, month);
+          const dates = [];
+
+          for (let day = 1; day <= totalDays; day += 1) {
+            const index = offset + (day - 1);
+            const cellCol = index % 7;
+            const cellRow = Math.floor(index / 7);
+            dates.push({
+              day,
+              iso: isoDate(year, month, day),
+              x: gridLeft + cellCol * cellW,
+              y: daysTop + cellRow * cellH,
+              w: cellW,
+              h: cellH
+            });
+          }
+
+          months.push({
+            monthName: MONTHS[month],
+            weekdays,
+            x, y, w: boxW, h: boxH,
+            titleTop, dowTop, gridLeft, cellW, cellH,
+            dates
+          });
+        }
+
+        return { page, titleY, titleSize, months };
+      }
+
+      function exportPdf() {
+        const pdfBytes = buildPdf();
+        const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `calendar-${state.year}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1500);
+      }
+
+      function buildPdf() {
+        const layout = buildLayoutModel(state.year, state.weekStart);
+        const { page, titleY, titleSize, months } = layout;
+        const markings = getYearMarkings();
+        const content = [];
+
+        const title = `${state.year} Calendar`;
+        content.push(setFillColor('#4d627b'));
+        content.push(centeredText(title, page.width / 2, titleY, titleSize, 'F2'));
+        content.push(setStrokeColor('#111111'));
+        content.push('1 w');
+        content.push(rect(page.margin, 64, page.width - page.margin * 2, page.height - 64 - page.margin, 'S', page.height));
+
+        months.forEach((month, index) => {
+          const rightEdge = index % 4 === 3;
+          const bottomEdge = index >= 8;
+          if (!rightEdge) {
+            content.push(line(month.x + month.w, month.y, month.x + month.w, month.y + month.h, page.height));
+          }
+          if (!bottomEdge) {
+            content.push(line(month.x, month.y + month.h, month.x + month.w, month.y + month.h, page.height));
+          }
+
+          content.push(setFillColor('#4d627b'));
+          content.push(centeredText(month.monthName, month.x + month.w / 2, month.titleTop, 12.5, 'F2'));
+
+          month.weekdays.forEach((weekday, i) => {
+            const x = month.gridLeft + i * month.cellW + month.cellW / 2;
+            content.push(setFillColor('#555555'));
+            content.push(centeredText(weekday, x, month.dowTop, 8.3, 'F2'));
+          });
+
+          month.dates.forEach(date => {
+            const color = markings[date.iso];
+            if (color) {
+              content.push(setFillColor(color));
+              content.push(rect(date.x + 1.5, date.y + 1.5, date.w - 3, date.h - 3, 'f', page.height));
+            }
+            content.push(setFillColor('#333333'));
+            content.push(centeredText(String(date.day), date.x + date.w / 2, date.y + date.h * 0.72, 8.6, 'F1'));
+          });
+        });
+
+        return pdfFromContent(page.width, page.height, content.join('\n'));
+      }
+
+      function pdfFromContent(width, height, stream) {
+        const objects = [];
+        const addObject = str => objects.push(str);
+
+        addObject('<< /Type /Catalog /Pages 2 0 R >>');
+        addObject('<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+        addObject(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${width} ${height}] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>`);
+        addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
+        addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>');
+        addObject(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
+
+        let output = '%PDF-1.4\n';
+        const offsets = [0];
+        for (let i = 0; i < objects.length; i += 1) {
+          offsets.push(output.length);
+          output += `${i + 1} 0 obj\n${objects[i]}\nendobj\n`;
+        }
+        const xrefStart = output.length;
+        output += `xref\n0 ${objects.length + 1}\n`;
+        output += '0000000000 65535 f \n';
+        for (let i = 1; i < offsets.length; i += 1) {
+          output += `${String(offsets[i]).padStart(10, '0')} 00000 n \n`;
+        }
+        output += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
+
+        return new TextEncoder().encode(output);
+      }
+
+      function pdfEscape(text) {
+        return String(text).replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+      }
+
+      function approxTextWidth(text, size, fontKey) {
+        const factor = fontKey === 'F2' ? 0.57 : 0.53;
+        return String(text).length * size * factor;
+      }
+
+      function centeredText(text, centerX, topY, size, fontKey) {
+        const width = approxTextWidth(text, size, fontKey);
+        const x = centerX - width / 2;
+        return textAt(text, x, topY, size, fontKey);
+      }
+
+      function textAt(text, x, topY, size, fontKey) {
+        const y = 612 - topY - size;
+        return `BT /${fontKey} ${size.toFixed(2)} Tf 1 0 0 1 ${x.toFixed(2)} ${y.toFixed(2)} Tm (${pdfEscape(text)}) Tj ET`;
+      }
+
+      function setFillColor(hex) {
+        const [r, g, b] = hexToRgb(hex);
+        return `${r} ${g} ${b} rg`;
+      }
+
+      function setStrokeColor(hex) {
+        const [r, g, b] = hexToRgb(hex);
+        return `${r} ${g} ${b} RG`;
+      }
+
+      function rect(x, topY, w, h, mode, pageHeight) {
+        const y = pageHeight - topY - h;
+        return `${x.toFixed(2)} ${y.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re ${mode}`;
+      }
+
+      function line(x1, topY1, x2, topY2, pageHeight) {
+        const y1 = pageHeight - topY1;
+        const y2 = pageHeight - topY2;
+        return `${x1.toFixed(2)} ${y1.toFixed(2)} m ${x2.toFixed(2)} ${y2.toFixed(2)} l S`;
+      }
+
+      function hexToRgb(hex) {
+        const clean = hex.replace('#', '').trim();
+        const full = clean.length === 3 ? clean.split('').map(ch => ch + ch).join('') : clean;
+        const num = parseInt(full, 16);
+        const r = ((num >> 16) & 255) / 255;
+        const g = ((num >> 8) & 255) / 255;
+        const b = (num & 255) / 255;
+        return [r.toFixed(3), g.toFixed(3), b.toFixed(3)];
+      }
+
+      document.addEventListener('mouseup', () => { isDragging = false; });
+      document.addEventListener('mouseleave', () => { isDragging = false; });
+      document.addEventListener('dragstart', (e) => e.preventDefault());
+
+      prevYearBtn.addEventListener('click', () => {
+        yearInput.value = clampYear(Number(yearInput.value || state.year) - 1);
+        renderCalendar();
+      });
+
+      nextYearBtn.addEventListener('click', () => {
+        yearInput.value = clampYear(Number(yearInput.value || state.year) + 1);
+        renderCalendar();
+      });
+
+      yearInput.addEventListener('change', () => {
+        yearInput.value = clampYear(Number(yearInput.value));
+        renderCalendar();
+      });
+
+      weekStartSelect.addEventListener('change', renderCalendar);
+      paintBtn.addEventListener('click', () => setTool('paint'));
+      eraseBtn.addEventListener('click', () => setTool('erase'));
+      clearYearBtn.addEventListener('click', clearYear);
+      printBtn.addEventListener('click', () => window.print());
+      exportPdfBtn.addEventListener('click', exportPdf);
+
+      yearInput.value = state.year;
+      weekStartSelect.value = state.weekStart;
+      renderPalette();
+      renderLegend();
+      setTool(activeTool);
+      renderCalendar();
+    })();
+  </script>
+</body>
+</html>
