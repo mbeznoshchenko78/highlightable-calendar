@@ -16,7 +16,7 @@ A lightweight yearly calendar tool you can use directly in your browser.
 ## Live Demo
 
 Use the live app here:
-[Open Calendar Highlighter](YOUR_PAGES_LINK_HERE)
+[[Open Calendar Highlighter](YOUR_PAGES_LINK_HERE)](https://mbeznoshchenko78.github.io/highlightable-calendar/)
 
 ## How to Use
 
